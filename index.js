@@ -3,7 +3,9 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 5000;
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+
+
 const crypto = require("crypto");
 app.use(cors());
 app.use(express.json());
@@ -32,12 +34,27 @@ async function run() {
 
      const collegeInformation = client.db("collegeBookingFacilities").collection("collegeInfo");
      const userCollection = client.db("collegeBookingFacilities").collection("users");
+     const admissionCollection = client.db("collegeBookingFacilities").collection("admissions");
+     const reviewCollection = client.db("collegeBookingFacilities").collection("reviews");
+
+
+
+
     //  get college info
        app.get("/collegeInfo", async (req, res) => {
       const cursor = collegeInformation.find();
       const result = await cursor.toArray();
       res.send(result);
     });
+
+    app.get("/collegeInfo/:id", async (req, res) => {
+  const id = req.params.id;
+  const result = await collegeInformation.findOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
+
+
+    // get users info
        app.get("/users", async (req, res) => {
       const cursor = userCollection.find();
       const result = await cursor.toArray();
@@ -45,9 +62,51 @@ async function run() {
     });
 
 
+       app.get("/admissions", async (req, res) => {
+      const cursor = admissionCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    // get admission info
+    app.get("/admissions/:email", async (req, res) => {
+  const email = req.params.email;
+  const result = await admissionCollection.find({ email }).toArray();
+  res.send(result);
+   });
+
+
+
+
+  //  get all reviews
+  app.get("/reviews", async (req, res) => {
+  const result = await reviewCollection.find().toArray();
+  res.send(result);
+});
+
+
+
+
+  //  post admission info
+  app.post("/admissions", async (req, res) => {
+  const admissionData = req.body;
+  const result = await admissionCollection.insertOne(admissionData);
+  res.send(result);
+});
+
+
+// post reviews
+
+app.post("/reviews", async (req, res) => {
+  const review = req.body;
+  const result = await reviewCollection.insertOne(review);
+  res.send(result);
+});
+
+
     // post the users info in server
     app.post("/register", async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, image, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).send({ success: false, message: "Missing credentials" });
@@ -60,7 +119,7 @@ async function run() {
     }
 
     // No hashing, saving password as plain text
-    const newUser = { name, email, password };
+    const newUser = { name, email, image, password };
 
     const result = await userCollection.insertOne(newUser);
 
@@ -100,6 +159,7 @@ app.post("/login", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        image: user.image,
       },
     });
   } catch (err) {
@@ -128,9 +188,6 @@ app.post('/social-user', async (req, res) => {
 
 // password reset functionalities
 
-
-
-// In-memory token store (use Redis/DB in production)
 const resetTokens = {};
 
 app.post("/request-reset", async (req, res) => {
@@ -171,6 +228,8 @@ app.post("/reset-password", async (req, res) => {
 
   res.send({ success: true, message: "Password updated successfully" });
 });
+
+
 
 
 
