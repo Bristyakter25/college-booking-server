@@ -4,6 +4,7 @@ const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion } = require('mongodb');
+const crypto = require("crypto");
 app.use(cors());
 app.use(express.json());
 
@@ -34,6 +35,11 @@ async function run() {
     //  get college info
        app.get("/collegeInfo", async (req, res) => {
       const cursor = collegeInformation.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+       app.get("/users", async (req, res) => {
+      const cursor = userCollection.find();
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -101,6 +107,71 @@ app.post("/login", async (req, res) => {
     res.status(500).send({ success: false, message: "Server error" });
   }
 });
+
+app.post('/social-user', async (req, res) => {
+  const { name, email, image } = req.body;
+
+  try {
+    const existingUser = await userCollection.findOne({ email });
+    if (existingUser) {
+      return res.send({ success: true, message: 'User already exists' });
+    }
+
+    const result = await userCollection.insertOne({ name, email, image });
+    res.send({ success: true, insertedId: result.insertedId });
+  } catch (error) {
+    console.error('Social user insert failed:', error);
+    res.status(500).send({ success: false, message: 'Internal server error' });
+  }
+});
+
+
+// password reset functionalities
+
+
+
+// In-memory token store (use Redis/DB in production)
+const resetTokens = {};
+
+app.post("/request-reset", async (req, res) => {
+  const { email } = req.body;
+
+  const user = await userCollection.findOne({ email });
+  if (!user) return res.status(404).send({ success: false, message: "User not found" });
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expires = Date.now() + 15 * 60 * 1000; // 15 min
+
+  resetTokens[token] = { email, expires };
+
+  const resetLink = `http://localhost:3000/reset-password?token=${token}`;
+
+ 
+  console.log("Password reset link:", resetLink);
+
+  res.send({ success: true, message: "Reset link sent to your email." });
+});
+
+app.post("/reset-password", async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  const data = resetTokens[token];
+  if (!data || Date.now() > data.expires) {
+    return res.status(400).send({ success: false, message: "Invalid or expired token" });
+  }
+
+  const { email } = data;
+
+  const result = await userCollection.updateOne(
+    { email },
+    { $set: { password: newPassword } }
+  );
+
+  delete resetTokens[token];
+
+  res.send({ success: true, message: "Password updated successfully" });
+});
+
 
 
   } finally {
