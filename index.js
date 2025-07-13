@@ -55,11 +55,46 @@ async function run() {
 
 
     // get users info
-       app.get("/users", async (req, res) => {
-      const cursor = userCollection.find();
-      const result = await cursor.toArray();
-      res.send(result);
-    });
+       app.get('/users', async (req, res) => {
+  const email = req.query.email;
+  try {
+    if (email) {
+      const user = await userCollection.findOne({ email });
+      if (!user) return res.status(404).send({ error: 'User not found' });
+      // Remove password before sending
+      delete user.password;
+      return res.send(user);
+    }
+    const users = await userCollection.find().toArray();
+    // Remove passwords from all users before sending
+    users.forEach(user => delete user.password);
+    res.send(users);
+  } catch (err) {
+    res.status(500).send({ error: 'Failed to fetch users' });
+  }
+});
+
+
+    app.put('/users/:id', async (req, res) => {
+  const id = req.params.id;
+  const updateData = req.body;
+
+  try {
+    const result = await userCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateData }
+    );
+
+    if (result.modifiedCount === 1) {
+      res.send({ success: true, message: "User updated" });
+    } else {
+      res.status(404).send({ error: "User not found or no changes" });
+    }
+  } catch (err) {
+    res.status(500).send({ error: "Failed to update user" });
+  }
+});
+
 
 
        app.get("/admissions", async (req, res) => {
